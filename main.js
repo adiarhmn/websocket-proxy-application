@@ -1,46 +1,70 @@
-require("dotenv").config();
-const WebSocket = require("ws");
+require('dotenv/config');
+const WebSocket = require('ws');
+const http = require('http');
 
-const username = process.env.USERNAME;
-const password = process.env.PASSWORD;
-const port = process.env.PORT || 8080;
+// Ambil env variable
+const WS_PORT = process.env.PORT || 8080;       // Port WebSocket
+const HEALTH_PORT = process.env.HEALTH_PORT || 8081; // Port health check
+const DA_USERNAME = process.env.USERNAME;
+const DA_PASSWORD = process.env.PASSWORD;
+const DA_HOST = process.env.DA_HOST || "wss://hosting.batuah.tech:2222/api/terminal?cols=114&rows=28";
 
-const server = new WebSocket.Server({ port });
-server.on("connection", function (clientSocket) {
-     const targetSocket = new WebSocket("wss://batuah.tech:2222/api/terminal", {
-          headers: {
-               Authorization:
-                    "Basic " +
-                    Buffer.from(`${username}:${password}`).toString("base64"),
-          },
-     });
+// ===== HTTP Health Check =====
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end("OK");
+}).listen(HEALTH_PORT, () => console.log(`Health check listening on ${HEALTH_PORT}`));
 
-     let isReady = false;
+// ===== WebSocket Proxy =====
+const wss = new WebSocket.Server({ port: WS_PORT });
+console.log(`WebSocket proxy listening on ${WS_PORT}`);
 
-     targetSocket.on("open", () => {
-          isReady = true;
-          const resizePayload = JSON.stringify({
-               cols: 80,
-               rows: 24,
-          });
-          targetSocket.send(Buffer.from(resizePayload));
-     });
+wss.on("connection", (clientSocket) => {
+  console.log("Client connected");
 
-     clientSocket.on("message", function (msg) {
-          console.log("Received message from client:", msg);
-          if (isReady && targetSocket.readyState === WebSocket.OPEN) {
-               targetSocket.send(msg.toString());
-               console.log("Sent message to DirectAdmin:", msg);
-          }
-     });
+  // Connect to DirectAdmin WS
+  const targetSocket = new WebSocket(DA_HOST, {
+    headers: {
+      Authorization:
+        "Basic " + Buffer.from(`${DA_USERNAME}:${DA_PASSWORD}`).toString("base64"),
+    },
+  });
 
-     // 🔥 DirectAdmin → client
-     targetSocket.on("message", function (msg) {
-          console.log("Received message from DirectAdmin:", msg.toString());
-          clientSocket.send(msg);
-     });
+  let isReady = false;
 
-     targetSocket.on("error", (err) => {
-          console.log("Target error:", err.message);
-     });
+  targetSocket.on("open", () => {
+    isReady = true;
+    console.log("Connected to DirectAdmin WS");
+  });
+
+  // Client → DirectAdmin
+  clientSocket.on("message", (msg) => {
+    if (isReady && targetSocket.readyState === WebSocket.OPEN) {
+      targetSocket.send(msg.toString());
+    }
+  });
+
+  // DirectAdmin → Client
+  targetSocket.on("message", (msg) => {
+    clientSocket.send(msg);
+  });
+
+  targetSocket.on("close", () => {
+    console.log("DirectAdmin WS closed");
+    clientSocket.close();
+  });
+
+  targetSocket.on("error", (err) => {
+    console.error("DirectAdmin WS error:", err.message);
+    clientSocket.close();
+  });
+
+  clientSocket.on("close", () => {
+    targetSocket.close();
+  });
+
+  clientSocket.on("error", (err) => {
+    console.error("Client WS error:", err.message);
+    targetSocket.close();
+  });
 });
