@@ -22,6 +22,7 @@ console.log(`WebSocket proxy listening on ${WS_PORT}`);
 wss.on("connection", (clientSocket) => {
   console.log("Client connected");
   console.log(`${DA_USERNAME}:${DA_PASSWORD}`)
+  console.log(`${DA_USERNAME}:${DA_PASSWORD}`)
   // Connect to DirectAdmin WS
   const targetSocket = new WebSocket(DA_HOST, {
     headers: {
