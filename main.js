@@ -5,8 +5,8 @@ const http = require('http');
 // Ambil env variable
 const WS_PORT = process.env.PORT || 8080;       // Port WebSocket
 const HEALTH_PORT = process.env.HEALTH_PORT || 8081; // Port health check
-const DA_USERNAME = process.env.USERNAME;
-const DA_PASSWORD = process.env.PASSWORD;
+const DA_USERNAME = process.env.DA_USERNAME;
+const DA_PASSWORD = process.env.DA_PASSWORD;
 const DA_HOST = process.env.DA_HOST || "wss://hosting.batuah.tech:2222/api/terminal?cols=114&rows=28";
 
 // ===== HTTP Health Check =====
@@ -21,7 +21,7 @@ console.log(`WebSocket proxy listening on ${WS_PORT}`);
 
 wss.on("connection", (clientSocket) => {
   console.log("Client connected");
-
+  console.log(`${DA_USERNAME}:${DA_PASSWORD}`)
   // Connect to DirectAdmin WS
   const targetSocket = new WebSocket(DA_HOST, {
     headers: {
